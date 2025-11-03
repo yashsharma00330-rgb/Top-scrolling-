@@ -1,109 +1,190 @@
 import React, { useState, useEffect } from "react";
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  onSnapshot,
+  updateDoc,
+  doc,
+  arrayUnion,
+} from "firebase/firestore";
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
 
-export default function TopScrolling() {
+// 🔥 Your Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyBs6PXDRMzvwnKi1FfR1ubJQozYgJeBCdc",
+  authDomain: "topscrolling-f78b9.firebaseapp.com",
+  projectId: "topscrolling-f78b9",
+  storageBucket: "topscrolling-f78b9.firebasestorage.app",
+  messagingSenderId: "246727427004",
+  appId: "1:246727427004:web:2ad6ea7f6b2858739aa1b9",
+  measurementId: "G-262DBFWGD0"
+};
+
+// 🔧 Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const storage = getStorage(app);
+const auth = getAuth(app);
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [caption, setCaption] = useState("");
+  const [image, setImage] = useState(null);
   const [posts, setPosts] = useState([]);
-  const [stories, setStories] = useState([]);
+  const [comment, setComment] = useState("");
 
+  // 🔥 Get posts real-time
   useEffect(() => {
-    // Fake posts (you can replace with API later)
-    const dummyPosts = [
-      {
-        id: 1,
-        user: "yash_sharma",
-        image: "https://source.unsplash.com/random/600x800?city",
-        likes: 120,
-        caption: "Exploring the city ✨",
-      },
-      {
-        id: 2,
-        user: "tech_world",
-        image: "https://source.unsplash.com/random/600x800?technology",
-        likes: 98,
-        caption: "New innovations coming soon! 💡",
-      },
-      {
-        id: 3,
-        user: "nature_snap",
-        image: "https://source.unsplash.com/random/600x800?nature",
-        likes: 256,
-        caption: "Peaceful mornings 🌿",
-      },
-    ];
-
-    const dummyStories = [
-      { id: 1, name: "yash", img: "https://source.unsplash.com/random/200x200?face" },
-      { id: 2, name: "aarav", img: "https://source.unsplash.com/random/200x200?person" },
-      { id: 3, name: "ria", img: "https://source.unsplash.com/random/200x200?girl" },
-      { id: 4, name: "tech", img: "https://source.unsplash.com/random/200x200?developer" },
-      { id: 5, name: "travel", img: "https://source.unsplash.com/random/200x200?travel" },
-    ];
-
-    setPosts(dummyPosts);
-    setStories(dummyStories);
+    const unsub = onSnapshot(collection(db, "posts"), (snapshot) => {
+      setPosts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
+    return unsub;
   }, []);
 
+  // 🔐 Auth
+  const signup = async () => {
+    await createUserWithEmailAndPassword(auth, email, password);
+    alert("Account created!");
+  };
+
+  const login = async () => {
+    await signInWithEmailAndPassword(auth, email, password);
+    setUser(auth.currentUser);
+    alert("Logged in!");
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+    setUser(null);
+  };
+
+  // 📸 Upload post
+  const uploadPost = async () => {
+    if (!image) return alert("Select an image!");
+    const storageRef = ref(storage, `images/${image.name}`);
+    await uploadBytes(storageRef, image);
+    const url = await getDownloadURL(storageRef);
+    await addDoc(collection(db, "posts"), {
+      user: user?.email,
+      caption,
+      imageUrl: url,
+      likes: [],
+      comments: [],
+      createdAt: new Date(),
+    });
+    setCaption("");
+    setImage(null);
+  };
+
+  // ❤️ Like post
+  const likePost = async (id) => {
+    const refDoc = doc(db, "posts", id);
+    await updateDoc(refDoc, {
+      likes: arrayUnion(user.email),
+    });
+  };
+
+  // 💬 Add comment
+  const addComment = async (id) => {
+    const refDoc = doc(db, "posts", id);
+    await updateDoc(refDoc, {
+      comments: arrayUnion({ user: user.email, text: comment }),
+    });
+    setComment("");
+  };
+
   return (
-    <div className="bg-gray-50 min-h-screen text-gray-800 font-sans">
-      {/* Header */}
-      <header className="flex justify-between items-center px-4 py-3 bg-white shadow">
-        <h1 className="text-2xl font-bold text-pink-600">TopScrolling</h1>
-        <div className="flex gap-4">
-          <button className="text-xl">❤️</button>
-          <button className="text-xl">💬</button>
-          <button className="text-xl">➕</button>
+    <div style={{ fontFamily: "sans-serif", maxWidth: 500, margin: "auto" }}>
+      <h1>🔥 TopScrolling</h1>
+
+      {!user ? (
+        <div>
+          <input
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            placeholder="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button onClick={signup}>Sign Up</button>
+          <button onClick={login}>Login</button>
         </div>
-      </header>
+      ) : (
+        <div>
+          <p>Welcome, {user.email}</p>
+          <button onClick={logout}>Logout</button>
+          <hr />
 
-      {/* Stories */}
-      <div className="flex overflow-x-auto gap-4 px-3 py-3 bg-white shadow-sm">
-        {stories.map((story) => (
-          <div key={story.id} className="flex flex-col items-center min-w-[70px]">
-            <img
-              src={story.img}
-              alt={story.name}
-              className="w-16 h-16 rounded-full border-2 border-pink-500 object-cover"
-            />
-            <p className="text-xs mt-1">{story.name}</p>
-          </div>
-        ))}
-      </div>
+          <h3>Upload Post</h3>
+          <input
+            type="file"
+            onChange={(e) => setImage(e.target.files[0])}
+          />
+          <input
+            placeholder="Write caption..."
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+          />
+          <button onClick={uploadPost}>Post</button>
 
-      {/* Feed */}
-      <main className="flex flex-col items-center mt-4">
-        {posts.map((post) => (
-          <div
-            key={post.id}
-            className="bg-white shadow-md rounded-lg mb-6 w-[90%] max-w-md"
-          >
-            <div className="flex items-center px-3 py-2">
+          <hr />
+          <h3>📷 Posts</h3>
+          {posts.map((p) => (
+            <div
+              key={p.id}
+              style={{
+                border: "1px solid #ddd",
+                borderRadius: 10,
+                marginBottom: 10,
+                padding: 10,
+              }}
+            >
+              <p><b>{p.user}</b></p>
               <img
-                src={`https://source.unsplash.com/random/100x100?profile-${post.user}`}
-                alt={post.user}
-                className="w-10 h-10 rounded-full object-cover"
+                src={p.imageUrl}
+                alt=""
+                style={{ width: "100%", borderRadius: 10 }}
               />
-              <span className="ml-3 font-semibold">{post.user}</span>
-            </div>
-            <img
-              src={post.image}
-              alt="Post"
-              className="w-full h-[400px] object-cover"
-            />
-            <div className="px-3 py-2">
-              <div className="flex gap-3 text-2xl">
-                <span>❤️</span>
-                <span>💬</span>
-                <span>📤</span>
+              <p>{p.caption}</p>
+              <button onClick={() => likePost(p.id)}>❤️ Like ({p.likes.length})</button>
+              <div>
+                <input
+                  placeholder="Write comment..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+                <button onClick={() => addComment(p.id)}>💬</button>
               </div>
-              <p className="text-sm font-semibold mt-1">
-                {post.likes} likes
-              </p>
-              <p className="text-sm mt-1">
-                <span className="font-semibold">{post.user}</span> {post.caption}
-              </p>
+              <ul>
+                {p.comments.map((c, i) => (
+                  <li key={i}>
+                    <b>{c.user}: </b> {c.text}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
-        ))}
-      </main>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
